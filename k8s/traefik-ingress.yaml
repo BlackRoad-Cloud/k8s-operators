@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: blackroad-ingress
+  namespace: blackroad
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  tls:
+    - hosts:
+        - api.blackroad.io
+        - agents.blackroad.io
+      secretName: blackroad-tls
+  rules:
+    - host: api.blackroad.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: blackroad-gateway
+                port:
+                  number: 8787
+    - host: agents.blackroad.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: blackroad-agents
+                port:
+                  number: 8080
