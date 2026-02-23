@@ -1,56 +1,93 @@
-# K8s Operators
+# blackroad-k8s-operator
 
-Kubernetes operators for BlackRoad deployments
+> Kubernetes-style operator with SQLite-backed resource tracking, YAML manifest support, reconciliation loop, and event watching.
 
-## 🌌 About BlackRoad OS, Inc.
+## Features
 
-**Core Product:** API layer above Google, OpenAI, and Anthropic
-**Purpose:** Manage AI model memory and continuity
-**Goal:** Enable entire companies to operate exclusively by AI
+- **10 resource kinds**: Deployment, Service, ConfigMap, Secret, Ingress, Job, StatefulSet, DaemonSet, CronJob, Namespace
+- **Full CRUD** with resource versioning and label selectors
+- **Scaling** — scale Deployments to any replica count
+- **Event watching** — generator-based event stream per namespace
+- **Apply manifests** — pure Python YAML → dict parser (no `pyyaml` dependency)
+- **Reconciliation** — desired-state vs actual-state diff with garbage collection
+- **YAML export** — serialize any resource back to YAML
+- **SQLite persistence** — all state in `~/.blackroad/k8s_operator.db`
 
-## 📦 Features
+## Quick start
 
-- ✨ Kubernetes operators for BlackRoad deployments
-- 🚀 Enterprise-ready infrastructure
-- 🔒 Proprietary BlackRoad OS, Inc. technology
-- 🌐 Designed for massive scale (30k agents + 30k employees)
+```bash
+pip install -r requirements.txt
+python src/k8s_operator.py create Deployment nginx --namespace default --spec '{"replicas":3}'
+python src/k8s_operator.py list --kind Deployment
+python src/k8s_operator.py scale <id> 5
+python src/k8s_operator.py export <id>
+```
 
-## 🏗️ Infrastructure
+### Apply a manifest
 
-This repository is part of the BlackRoad Empire:
-- **578 repositories** across 15 specialized organizations
-- Designed to support **30,000 AI agents + 30,000 human employees**
-- **1 operator:** Alexa Amundson (CEO)
+```bash
+cat <<EOF | python src/k8s_operator.py apply -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: production
+spec:
+  replicas: 2
+  image: nginx:latest
+EOF
+```
 
-## 📊 Status
+## API
 
-🟢 **Active Development** | 🏢 **BlackRoad OS, Inc.** | 👔 **CEO: Alexa Amundson**
+```python
+from src.k8s_operator import Controller, ResourceKind
 
----
+ctrl = Controller(ResourceKind.DEPLOYMENT.value)
 
-## 📜 License & Copyright
+# Create
+r = ctrl.create_resource("Deployment", "web", "default", {"replicas": 3})
 
-**Copyright © 2026 BlackRoad OS, Inc. All Rights Reserved.**
+# Scale
+ctrl.scale(r.id, 5)
 
-**CEO:** Alexa Amundson
+# Status
+print(ctrl.get_status(r.id))
 
-**PROPRIETARY AND CONFIDENTIAL**
+# Reconcile
+ctrl.reconcile([
+    {"kind": "Deployment", "name": "web", "namespace": "default", "spec": {"replicas": 3}},
+])
 
-This software is the proprietary property of BlackRoad OS, Inc. and is **NOT for commercial resale**.
+# Apply YAML
+r = ctrl.apply_manifest(open("deployment.yaml").read())
 
-### ⚠️ Usage Restrictions:
-- ✅ **Permitted:** Testing, evaluation, and educational purposes
-- ❌ **Prohibited:** Commercial use, resale, or redistribution without written permission
+# Export YAML
+print(ctrl.export_yaml(r.id))
 
-### 🏢 Enterprise Scale:
-Designed to support:
-- 30,000 AI Agents
-- 30,000 Human Employees
-- One Operator: Alexa Amundson (CEO)
+# Watch events (generator)
+for event in ctrl.watch_events("default", timeout_secs=10):
+    print(event.event_type, event.resource.name)
+```
 
-### 📧 Contact:
-For commercial licensing inquiries:
-- **Email:** blackroad.systems@gmail.com
-- **Organization:** BlackRoad OS, Inc.
+## Testing
 
-See [LICENSE](LICENSE) for complete terms.
+```bash
+pip install pytest
+pytest tests/ -v
+```
+
+## Architecture
+
+```
+Controller
+├── SQLite (resources, events, reconcile_log)
+├── create_resource / delete_resource / update_resource
+├── scale(deployment_id, replicas)
+├── get_status(id) → full status + recent events
+├── watch_events(namespace) → generator[Event]
+├── apply_manifest(yaml_str) → Resource (upsert)
+├── reconcile(desired, actual) → list[ReconcileResult]
+├── export_yaml(id) → YAML string
+└── list_resources(namespace, kind, label_selector)
+```
