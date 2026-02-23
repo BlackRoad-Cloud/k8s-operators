@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blackroad-gateway
+  namespace: blackroad
+  labels:
+    app: blackroad-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: blackroad-gateway
+  template:
+    metadata:
+      labels:
+        app: blackroad-gateway
+    spec:
+      containers:
+        - name: gateway
+          image: ghcr.io/blackroad-os-inc/blackroad-gateway:latest
+          ports:
+            - containerPort: 8787
+          envFrom:
+            - secretRef:
+                name: blackroad-provider-keys
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blackroad-gateway
+  namespace: blackroad
+spec:
+  selector:
+    app: blackroad-gateway
+  ports:
+    - port: 8787
+      targetPort: 8787
+  type: ClusterIP
