@@ -1,6 +1,6 @@
-# blackroad-k8s-operator
+# BlackRoad K8s Operator
 
-> Kubernetes-style operator with SQLite-backed resource tracking, YAML manifest support, reconciliation loop, and event watching.
+A production-quality Kubernetes-style operator with SQLite-backed resource tracking, pure-Python YAML parsing, reconciliation loop, and event watching.
 
 ## Features
 
@@ -8,22 +8,31 @@
 - **Full CRUD** with resource versioning and label selectors
 - **Scaling** — scale Deployments to any replica count
 - **Event watching** — generator-based event stream per namespace
-- **Apply manifests** — pure Python YAML → dict parser (no `pyyaml` dependency)
+- **Apply manifests** — pure-Python YAML parser (no `pyyaml` dependency)
 - **Reconciliation** — desired-state vs actual-state diff with garbage collection
 - **YAML export** — serialize any resource back to YAML
 - **SQLite persistence** — all state in `~/.blackroad/k8s_operator.db`
 
-## Quick start
+## Quick Start
 
 ```bash
-pip install -r requirements.txt
+# Install test dependencies
+pip install pytest
+
+# Create a resource
 python src/k8s_operator.py create Deployment nginx --namespace default --spec '{"replicas":3}'
+
+# List resources
 python src/k8s_operator.py list --kind Deployment
+
+# Scale a deployment
 python src/k8s_operator.py scale <id> 5
+
+# Export as YAML
 python src/k8s_operator.py export <id>
 ```
 
-### Apply a manifest
+### Apply a Manifest
 
 ```bash
 cat <<EOF | python src/k8s_operator.py apply -
@@ -38,7 +47,19 @@ spec:
 EOF
 ```
 
-## API
+## CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `create <kind> <name>` | Create a resource (Deployment, Service, etc.) |
+| `delete <id>` | Delete a resource by ID |
+| `scale <id> <replicas>` | Scale a Deployment to N replicas |
+| `status <id>` | Get full status with recent events |
+| `apply <file>` | Apply a YAML manifest (use `-` for stdin) |
+| `list [--namespace NS] [--kind KIND]` | List resources with filters |
+| `export <id>` | Export a resource as YAML |
+
+## Python API
 
 ```python
 from src.k8s_operator import Controller, ResourceKind
@@ -77,6 +98,8 @@ pip install pytest
 pytest tests/ -v
 ```
 
+The test suite covers YAML parsing, CRUD operations, scaling, status management, manifest application, reconciliation, list filtering, and YAML export.
+
 ## Architecture
 
 ```
@@ -91,3 +114,36 @@ Controller
 ├── export_yaml(id) → YAML string
 └── list_resources(namespace, kind, label_selector)
 ```
+
+## Kubernetes Deployment
+
+The repo includes Kubernetes manifests and a Helm chart for deploying the BlackRoad platform:
+
+### Manifests (`k8s/`)
+
+- **namespace.yaml** — `blackroad` namespace
+- **agents-deployment.yaml** — Agent runtime (3 replicas, port 8080)
+- **gateway-deployment.yaml** — Gateway service (2 replicas, port 8787)
+- **traefik-ingress.yaml** — Ingress routes for `api.blackroad.io` and `agents.blackroad.io`
+
+### Helm Chart (`helm/`)
+
+```bash
+helm install blackroad ./helm
+```
+
+Configuration in `helm/values.yaml` covers replica counts, resource limits, image registry, and ingress settings.
+
+## CI/CD
+
+The repository uses GitHub Actions for:
+
+- **CI** — Python 3.10/3.11/3.12 test matrix with pytest
+- **Operator CI** — Linting (pylint), formatting (black), coverage, and code quality (radon)
+- **Security Scan** — CodeQL analysis for Python and pip-audit for dependency vulnerabilities
+- **Self-Healing** — Automated health checks, rollback, and recovery
+- **Auto Deploy** — Automatic deployment to Cloudflare Pages or Railway
+
+## License
+
+Proprietary — BlackRoad OS, Inc. See [LICENSE](LICENSE) for details.
